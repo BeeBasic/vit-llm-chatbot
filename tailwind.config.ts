@@ -61,7 +61,37 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// VIT Brand Colors
+				vit: {
+					blue: 'hsl(var(--vit-blue))',
+					'blue-light': 'hsl(var(--vit-blue-light))',
+					'blue-dark': 'hsl(var(--vit-blue-dark))',
+					gold: 'hsl(var(--vit-gold))',
+					'gold-light': 'hsl(var(--vit-gold-light))',
+					'gold-dark': 'hsl(var(--vit-gold-dark))'
+				},
+				// Chat-specific colors
+				chat: {
+					user: 'hsl(var(--chat-user))',
+					'user-foreground': 'hsl(var(--chat-user-foreground))',
+					bot: 'hsl(var(--chat-bot))',
+					'bot-foreground': 'hsl(var(--chat-bot-foreground))'
 				}
+			},
+			backgroundImage: {
+				'gradient-primary': 'var(--gradient-primary)',
+				'gradient-gold': 'var(--gradient-gold)',
+				'gradient-subtle': 'var(--gradient-subtle)'
+			},
+			boxShadow: {
+				'chat': 'var(--shadow-chat)',
+				'sidebar': 'var(--shadow-sidebar)',
+				'card': 'var(--shadow-card)'
+			},
+			transitionTimingFunction: {
+				'smooth': 'cubic-bezier(0.4, 0, 0.2, 1)',
+				'bounce': 'cubic-bezier(0.68, -0.55, 0.265, 1.55)'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
