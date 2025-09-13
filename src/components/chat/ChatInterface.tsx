@@ -5,6 +5,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Paperclip, Mic, Smile } from "lucide-react";
 import { ChatMessage } from "./ChatMessage";
 import { FileUploadZone } from "./FileUploadZone";
+import { apiService, type ChatMessage as ApiChatMessage } from "@/services/api";
+import { useToast } from "@/hooks/use-toast";
 
 interface Message {
   id: string;
@@ -12,6 +14,7 @@ interface Message {
   content: string;
   timestamp: Date;
   files?: Array<{ name: string; type: string; size: number }>;
+  sources?: Array<{ fileName: string; chunkIndex: number }>;
 }
 
 const welcomeMessages: Message[] = [
@@ -36,6 +39,11 @@ export function ChatInterface() {
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
+  const [userId] = useState(
+    () => `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  );
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   // Use this ref to access the **viewport inside ScrollArea**
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -47,7 +55,7 @@ export function ChatInterface() {
     }
   }, [messages, isLoading]);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
 
     const userMessage: Message = {
@@ -58,20 +66,52 @@ export function ChatInterface() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const currentInput = inputValue;
     setInputValue("");
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      // Create session if not exists
+      if (!sessionId) {
+        const session = await apiService.createChatSession(userId);
+        setSessionId(session.sessionId);
+      }
+
+      // Send message to API
+      const response = await apiService.sendMessage(
+        userId,
+        currentInput,
+        sessionId || undefined
+      );
+
       const botMessage: Message = {
+        id: response.message.id,
+        type: "bot",
+        content: response.message.content,
+        timestamp: new Date(response.message.timestamp),
+        sources: response.message.sources,
+      };
+
+      setMessages((prev) => [...prev, botMessage]);
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
+
+      const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: "bot",
         content:
-          "I understand your question. This is a simulated response. In full version, I would query the VIT knowledge base.",
+          "Sorry, I encountered an error processing your message. Please try again.",
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, botMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -81,8 +121,12 @@ export function ChatInterface() {
     }
   };
 
-  const handleFileUpload = (files: File[]) => {
-    const fileData = files.map((f) => ({ name: f.name, type: f.type, size: f.size }));
+  const handleFileUpload = async (files: File[]) => {
+    const fileData = files.map((f) => ({
+      name: f.name,
+      type: f.type,
+      size: f.size,
+    }));
     const userMessage: Message = {
       id: Date.now().toString(),
       type: "user",
@@ -92,16 +136,49 @@ export function ChatInterface() {
     };
     setMessages((prev) => [...prev, userMessage]);
     setShowFileUpload(false);
+    setIsLoading(true);
 
-    setTimeout(() => {
-      const botMessage: Message = {
+    try {
+      if (files.length === 1) {
+        // Single file upload
+        const response = await apiService.uploadDocument(files[0]);
+        const botMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          type: "bot",
+          content: `📄 Successfully processed "${response.fileName}". Generated ${response.chunksProcessed} chunks and ${response.embeddingsGenerated} embeddings. The document is now searchable!`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, botMessage]);
+      } else {
+        // Multiple file upload
+        const response = await apiService.uploadMultipleDocuments(files);
+        const botMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          type: "bot",
+          content: `📄 Processed ${response.processed} files successfully. ${response.errors} files had errors. The documents are now searchable!`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, botMessage]);
+      }
+    } catch (error) {
+      console.error("Failed to upload files:", error);
+      toast({
+        title: "Upload Error",
+        description: "Failed to process uploaded files. Please try again.",
+        variant: "destructive",
+      });
+
+      const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: "bot",
-        content: `📄 Received your files: ${files.map((f) => f.name).join(", ")}.`,
+        content:
+          "Sorry, I encountered an error processing your files. Please try again.",
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, botMessage]);
-    }, 2000);
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -136,7 +213,10 @@ export function ChatInterface() {
       {/* File Upload */}
       {showFileUpload && (
         <div className="p-4 border-t">
-          <FileUploadZone onFileUpload={handleFileUpload} onClose={() => setShowFileUpload(false)} />
+          <FileUploadZone
+            onFileUpload={handleFileUpload}
+            onClose={() => setShowFileUpload(false)}
+          />
         </div>
       )}
 
